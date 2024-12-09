@@ -214,12 +214,15 @@ class BytePairTokenizer(BaseTokenizer):
             json.dump(db, file, indent=4)
 
     def load_merges(self):
-        with open("../data/merges.json", "r") as file:
-            db = json.load(file)
-            merges = {eval(k): v for k, v in db["merges"].items()}
-            vocab = {eval(k): v.encode("utf-8") for k, v in db["vocab"].items()}
-            self.merges = merges
-            self.vocab = vocab
+        try:
+            with open("../data/merges.json", "r") as file:
+                db = json.load(file)
+                merges = {eval(k): v for k, v in db["merges"].items()}
+                vocab = {eval(k): v.encode("utf-8") for k, v in db["vocab"].items()}
+                self.merges = merges
+                self.vocab = vocab
+        except FileNotFoundError:
+            logging.warning("No merges file found. Training tokenizer from scratch.")
 
     def view_tokenized_text(self, ids: list):
         for idx in ids:
@@ -296,38 +299,52 @@ class EnhancedBytePairTokenizer(BytePairTokenizer):
         return sorted(token_freq.items(), key=lambda x: x[1], reverse=True)[:10]
 
 
-def get_corpus(max_samples=100000, batch_size=1000):
+def get_corpus(name:str = "bookcorpus", max_samples=100000, batch_size=1000):
     """Streaming corpus loader with more robust error handling"""
-    try:
-        bookcorpus = datasets.load_dataset("bookcorpus", split="train", streaming=True)
-        text_chunks = []
-        
-        for i, sample in enumerate(bookcorpus):
-            if i >= max_samples:
-                break
-            text_chunks.append(sample['text'])
+    if name == "bookcorpus":
+        try:
+            bookcorpus = datasets.load_dataset("bookcorpus", split="train", streaming=True)
+            text_chunks = []
             
-            if len(text_chunks) >= batch_size:
+            for i, sample in enumerate(bookcorpus):
+                if i >= max_samples:
+                    break
+                text_chunks.append(sample['text'])
+                
+                if len(text_chunks) >= batch_size:
+                    yield ' '.join(text_chunks)
+                    text_chunks = []
+            
+            if text_chunks:
                 yield ' '.join(text_chunks)
-                text_chunks = []
         
-        if text_chunks:
-            yield ' '.join(text_chunks)
-    
-    except Exception as e:
-        logging.error(f"Error loading corpus: {e}")
-        raise
-
+        except Exception as e:
+            logging.error(f"Error loading corpus: {e}")
+            raise
+    else:
+        with open(f"../data/{name}", "r", encoding="utf-8") as file:
+            text = file.readlines()
+            text_chunks = []
+            for i, line in enumerate(text):
+                if i >= max_samples:
+                    break
+                text_chunks.append(line)
+                
+                if len(text_chunks) >= batch_size:
+                    yield ' '.join(text_chunks)
+                    text_chunks = []
 
 def main():
     tokenizer = EnhancedBytePairTokenizer(
-        vocab_size=800,  # Vocabulary size, number of tokens in the vocabulary
+        vocab_size=10000,  # Vocabulary size, number of tokens in the vocabulary
         max_token_length=4, # Maximum token length, referes to the number of bytes in a token
         min_frequency=5  # Minimum frequency of a token to be considered for merging
     )
     
-    for text_chunk in get_corpus(max_samples=10000):
+    for text_chunk in get_corpus("/en-zh/UNv1.0.en-zh.en", max_samples=1000000):
+        tokenizer.load_merges()
         tokenizer.train(text_chunk)
+        tokenizer.save_merges()
 
     tokenizer.save_merges()
     
