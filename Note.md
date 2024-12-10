@@ -23,4 +23,11 @@
 - [X] Cercare i dataset delle varie lingue;
 - [X] scegliere cosa fare on il tokenizer, o custom training, o tiktoken. Scelta: tiktoken cl100k_base;
 - [X] Dataloaders;
-- [] Testing 
+- [X] Testing tokenizer;
+- [] Creazione del modello;
+- [] Ottimizzazione;
+- [] Training del modello
+- [] Finetune? (È necessaria?) 
+- [] Evaluation
+- [] Deploy
+ 
