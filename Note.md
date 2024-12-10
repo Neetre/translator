@@ -28,5 +28,5 @@
 - [] Training del modello
 - [] Finetune? (È necessaria?) 
 - [] Evaluation
-- [] Deploy
+- [] Deploy (website, load the model on hf) 
  
