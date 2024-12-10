@@ -31,6 +31,22 @@ Languages extracted from WMT19 dataset:
 - [METEOR](https://spotintelligence.com/2024/08/26/meteor-metric-in-nlp-how-it-works-how-to-tutorial-in-python/)
 - [BERTScore](https://huggingface.co/spaces/evaluate-metric/bertscore) 
 
+## Optemization
+
+- [Muon](https://www.perplexity.ai/search/muon-optimizer-deep-learning-GcnuaC__Qu2FCqBFamaQwA#0)
+
+Extract from Modded-NanoGPT:
+
+- Modernized architecture: Rotary embeddings, QK-Norm, and ReLU^2.
+- New optimizer: Muon - Momentum Orthogonalized by Newton-schulz.
+- Untied head from embedding.
+- Projection and classification layers initialized to zero (muP-like).
+- Architectural shortcuts: value residual and embedding shortcut (partially following https://arxiv.org/abs/2410.17897).
+- Momentum warmup.
+- Tanh soft logit capping (following Gemma 2).
+- FlexAttention with window size warmup.
+- Extra embeddings which are fed into intermediate attention layers.
+
 
 ## Step
 
@@ -40,8 +56,8 @@ Languages extracted from WMT19 dataset:
 - [X] Testing tokenizer;
 - [] Creazione del modello;
 - [] Ottimizzazione;
-- [] Training del modello
-- [] Finetune? (È necessaria?) 
-- [] Evaluation
-- [] Deploy (website, load the model on hf) 
+- [] Training del modello;
+- [] Finetune? (È necessaria?);
+- [] Evaluation;
+- [] Deploy (website, load the model on hf);
  
