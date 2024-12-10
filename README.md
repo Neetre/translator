@@ -4,6 +4,8 @@
 
 Decoder-Encoder Transformer Model for Ensligh to N translation
 
+Look at [Note](Note.md) ti get more infos about the whole process. 
+
 ## Installation
 
 ### Requirements
