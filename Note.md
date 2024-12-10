@@ -1,5 +1,18 @@
 # Note
 
+## Model Goal
+
+Translation (content from WMT19 dataset):
+- cs-en (7.27M rows)
+- de-en (34.8M rows)
+- fi-en (6.59M rows)
+- fr-de (9.83M rows)
+- gu-en (13.7k rows)
+- kk-en (129k rows)
+- It-en (2.35M rows)
+- ru-en (37.5M rows)
+- zh-en (26M rows)
+
 ## Template models
 
 - [annotated-transformer](https://github.com/harvardnlp/annotated-transformer/blob/master/AnnotatedTransformer.ipynb)
