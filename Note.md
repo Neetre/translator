@@ -2,7 +2,9 @@
 
 ## Model Goal
 
-Translation (content from WMT19 dataset):
+Translation 
+
+Languages extracted from WMT19 dataset:
 - cs-en (7.27M rows)
 - de-en (34.8M rows)
 - fi-en (6.59M rows)
