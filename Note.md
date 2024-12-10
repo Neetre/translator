@@ -16,6 +16,7 @@
 - [BLEU](https://www.digitalocean.com/community/tutorials/bleu-score-in-python)
 - [TER](https://pypi.org/project/pyter/)
 - [METEOR](https://spotintelligence.com/2024/08/26/meteor-metric-in-nlp-how-it-works-how-to-tutorial-in-python/)
+- [BERTScore] (https://huggingface.co/spaces/evaluate-metric/bertscore ) 
 
 
 ## Step
