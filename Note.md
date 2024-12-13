@@ -19,7 +19,8 @@ Languages extracted from WMT19 dataset:
 
 - [annotated-transformer](https://github.com/harvardnlp/annotated-transformer/blob/master/AnnotatedTransformer.ipynb)
 - [The Annotated Transformer](https://nlp.seas.harvard.edu/2018/04/03/attention.html)
-- [NanoGPT]()
+- [nanoGPT]()
+- [modded_nanoGPT](https://github.com/KellerJordan/modded-nanogpt.git)
 
 ## Datasets
 
