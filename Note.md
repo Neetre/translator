@@ -2,9 +2,10 @@
 
 ## Model Goal
 
-Translation 
+Machine translation is the task of automatically converting source text in one language to text in another language. The goal is to create a model that can translate text from one language to another. The model will be trained on a dataset of parallel text, which consists of examples of text in two languages and their translations. The model will learn to generate translations of text in one language into text in another language.
 
 Languages extracted from WMT19 dataset:
+
 - cs-en (7.27M rows)
 - de-en (34.8M rows)
 - fi-en (6.59M rows)
@@ -19,8 +20,8 @@ Languages extracted from WMT19 dataset:
 
 - [annotated-transformer](https://github.com/harvardnlp/annotated-transformer/blob/master/AnnotatedTransformer.ipynb)
 - [The Annotated Transformer](https://nlp.seas.harvard.edu/2018/04/03/attention.html)
-- [nanoGPT]()
-- [modded_nanoGPT](https://github.com/KellerJordan/modded-nanogpt.git)
+- [nanoGPT](https://github.com/karpathy/nanoGPT) @karpathy
+- [modded_nanoGPT](https://github.com/KellerJordan/modded-nanogpt.git) @KellerJordan
 
 ## Datasets
 

@@ -7,12 +7,10 @@ import tiktoken
 
 
 LANGUAGE_PAIRS = [
-    ('de', 'en'),
-    ('ru', 'en'),
-    ('zh', 'en')
-]
-tokenizer = tiktoken.get_encoding("cl100k_base")  # o200k_base
-
+    ('de', 'en')
+] #     ('ru', 'en'), ('zh', 'en')
+tokenizer = tiktoken.get_encoding("o200k_base")  # o200k_base - cl100k_base
+print(tokenizer.vocab_size)
 
 def load_all_datasets():
     datasets = {}
@@ -44,6 +42,7 @@ for lang_pair, dataset in datasets.items():
         lambda examples: tokenize_function(examples, src_lang),
         batched=True
     )
+
 
 print(tokenized_datasets.keys())
 print(tokenized_datasets['de-en']['train'][0])
