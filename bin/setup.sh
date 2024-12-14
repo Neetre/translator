@@ -6,7 +6,4 @@ if [ ! -d ".venv" ]; then
     python3 -m venv .venv
 fi
 source .venv/bin/activate
-
-cd bin
-echo "Running the main application..."
-python3 
+pip install -r requirements.txt

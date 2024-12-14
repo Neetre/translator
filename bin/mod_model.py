@@ -6,6 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
+from train import MTConfig
 
 def norm(x):
     """RMS normalization from nanoGPT"""
@@ -43,56 +44,56 @@ class RotaryEmbedding(nn.Module):
         return torch.cat((y1, y2), 3).type_as(x)
 
 class TransformerModel(nn.Module):
-    def __init__(self, src_vocab_size, tgt_vocab_size, 
-                 d_model=512, nhead=8, num_encoder_layers=6,
-                 num_decoder_layers=6, dim_feedforward=2048, dropout=0.1):
+    def __init__(self, config: MTConfig):
         super(TransformerModel, self).__init__()
+        self.vocab_size = config.vocab_size
+        self.d_model = config.model_dim
+        self.nhead = config.num_heads
+        self.dim_feedforward = config.dim_feedforward
+        self.dropout = config.dropout
+        self.num_encoder_layers = config.num_layers // 2
+        self.num_decoder_layers = config.num_layers - self.num_encoder_layers
         
         # Embedding layers with more efficient linear projections
-        self.src_embed = nn.Embedding(src_vocab_size, d_model)
-        self.tgt_embed = nn.Embedding(tgt_vocab_size, d_model)
+        self.src_embed = nn.Embedding(self.vocab_size, self.d_model)
+        self.tgt_embed = nn.Embedding(self.vocab_size, self.d_model)
         
         # Rotary position encoding instead of standard positional encoding
-        self.pos_encoder = RotaryEmbedding(d_model // nhead)
+        self.pos_encoder = RotaryEmbedding(self.d_model // self.nhead)
         
         # Transformer with normalization and attention modifications
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            dropout=self.dropout,
             batch_first=True,
             norm_first=True  # Pre-normalization like in nanoGPT
         )
         decoder_layer = nn.TransformerDecoderLayer(
-            d_model=d_model,
-            nhead=nhead,
-            dim_feedforward=dim_feedforward,
-            dropout=dropout,
+            d_model=self.d_model,
+            nhead=self.nhead,
+            dim_feedforward=self.dim_feedforward,
+            dropout=self.dropout,
             batch_first=True,
             norm_first=True
         )
-        
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_encoder_layers)
-        self.decoder = nn.TransformerDecoder(decoder_layer, num_decoder_layers)
-        
+
+        self.encoder = nn.TransformerEncoder(encoder_layer, self.num_encoder_layers)
+        self.decoder = nn.TransformerDecoder(decoder_layer, self.num_decoder_layers)
+
         # Output projection with casting
-        self.output_layer = CastedLinear(d_model, tgt_vocab_size)
-        
-        # Initialize parameters
+        self.output_layer = CastedLinear(self.d_model, self.vocab_size)
+        nn.init.normal_(self.output_layer.weight, mean=0.0, std=0.02)
+
         self._init_parameters()
-        
-        self.d_model = d_model
-        self.nhead = nhead
     
     def forward(self, src, tgt, src_mask=None, tgt_mask=None, 
                 src_padding_mask=None, tgt_padding_mask=None):
-        # Embed and scale input tokens
         src_embedded = self.src_embed(src) * math.sqrt(self.d_model)
         tgt_embedded = self.tgt_embed(tgt) * math.sqrt(self.d_model)
         
         # Apply rotary position encoding
-        # Reshape for rotary encoding
         B, T, E = src_embedded.shape
         H = self.nhead
         src_reshaped = src_embedded.view(B, T, H, E//H)
@@ -105,15 +106,12 @@ class TransformerModel(nn.Module):
         if tgt_mask is None:
             tgt_mask = self.generate_square_subsequent_mask(tgt.size(1))
             tgt_mask = tgt_mask.to(tgt.device)
-        
-        # Apply RMS norm before transformer layers
+
         src_encoded = norm(src_encoded)
         tgt_encoded = norm(tgt_encoded)
-        
-        # Encoder
+
         memory = self.encoder(src_encoded, src_mask, src_padding_mask)
-        
-        # Decoder
+
         output = self.decoder(
             tgt_encoded, memory,
             tgt_mask=tgt_mask,
@@ -121,8 +119,7 @@ class TransformerModel(nn.Module):
             tgt_key_padding_mask=tgt_padding_mask,
             memory_key_padding_mask=src_padding_mask
         )
-        
-        # Project to vocabulary size with casting
+
         return self.output_layer(output)
     
     def _init_parameters(self):
