@@ -36,7 +36,7 @@ def load_single_dataset(name_dataset, lang_pair, split, streaming=True):
         name_dataset, 
         lang_pair, 
         split=split,
-        # streaming=streaming  # Enable streaming mode
+        streaming=streaming  # Enable streaming mode
     )
     return dataset
 
@@ -82,15 +82,41 @@ def tokenize(doc, lang_pair):
         return tokens_np_uint32
 
 
+def write_datafile(filename, tokens_np):
+    np.save(filename, tokens_np)
+    print(f"Saved {filename}")
+
+
 nprocs = max(1, mp.cpu_count() - 2)
 print(f"Using {nprocs} processes")
 with mp.Pool(nprocs) as pool:
     for lang_pair in LANGUAGE_PAIRS:
-        dataset = load_single_dataset('wmt19', lang_pair, split='train')
+        dataset = load_single_dataset('wmt19', lang_pair, split='train', streaming=True)
         shard_idx = 0
         all_tokens_np = np.empty((args.shard_size,), dtype=np.uint32)
         token_count = 0
         progress_bar = 0
         for dict_tokens in pool.imap(tokenize, dataset, chunksize=16):
-            if token_count + len(dict_tokens) > args.shard_size:
-                all_tokens_np[token_count:token_count+len(dict_tokens)] = dict_tokens
+            token_len = len(dict_tokens[0]) + len(dict_tokens[1])
+            if token_count + token_len > args.shard_size:
+                all_tokens_np[token_count:token_count+token_len] = dict_tokens
+                token_count += token_len
+                if progress_bar is None:
+                    progress_bar = tqdm(total=args.shard_size, unit="tokens", desc=f"Shard {shard_idx}")
+                progress_bar.update(token_count)
+            else:
+                split = "val" if shard_idx == 0 else "train"
+                filename = os.path.join(DATA_CACHE_DIR, f"{lang_pair[0]}_{lang_pair[1]}_{split}_{shard_idx:06d}.npy")
+                remainder = args.shard_size - token_count
+                progress_bar.update(remainder)
+                all_tokens_np[token_count:token_count+remainder] = dict_tokens[:remainder]
+                write_datafile(filename, all_tokens_np)
+                shard_idx += 1
+                progress_bar = None
+                all_tokens_np[0: token_len - remainder] = dict_tokens[remainder:]
+                token_count = token_len - remainder
+        
+        if token_count != 0:
+            split = "val" if shard_idx == 0 else "train"
+            filename = os.path.join(DATA_CACHE_DIR, f"{lang_pair[0]}_{lang_pair[1]}_{split}_{shard_idx:06d}.npy")
+            write_datafile(filename, all_tokens_np[:token_count])
