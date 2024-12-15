@@ -7,7 +7,6 @@ from dataclasses import dataclass
 import torch.distributed as dist
 
 from load_WMT import BASE_DIR, DATA_ROOT, LANGUAGE_PAIRS
-from mod_model import TransformerModel
 
 
 @dataclass
@@ -20,57 +19,6 @@ class MTConfig:
     dropout : float = 0.1
     pad_token: int = 0
     max_seq_len: int = 1024
-
-
-def get_data_dir(lang_pair, split):
-    return os.path.join(DATA_ROOT, lang_pair, split)
-
-
-def load_tokens(filename):
-    npt = np.load(filename)
-    ppt = torch.tensor(npt, dtype=torch.long)
-    return ppt
-
-class DataLoader:
-    def __init__(self, B, T, process_rank, num_processes, split):
-        self.B = B
-        self.T = T
-        self.process_rank = process_rank
-        self.num_processes = num_processes
-        assert split in {'train', 'val'}
-
-        self.split = split
-        self.shards = []
-        for lang_pair in LANGUAGE_PAIRS:
-            data_dir = get_data_dir(lang_pair, split)
-            shard_files = sorted(os.listdir(data_dir))
-            for shard_file in shard_files:
-                shard = load_tokens(os.path.join(data_dir, shard_file))
-                self.shards.append(shard)
-        self.shards = sorted(self.shards)
-        assert len(self.shards) > 0 , f"No shards found for {split}"
-        if master_process:
-            print(f"Found {len(self.shards)} shards for {split}")
-
-        self.reset()
-
-    def reset(self):
-        self.current_shard = 0
-        self.tokens = load_tokens(self.shards[self.current_shard])
-        self.current_position = self.B * self.T * self.process_rank
-
-    def next_batch(self):
-        B , T = self.B, self.T
-        buf = self.tokens[self.current_position:self.current_position + B * T]
-        x = (buf[:-1]).view(B, T)
-        y = (buf[1:]).view(B, T)
-        self.current_position += B * T * self.num_processes
-        if self.current_position + (B * T * self.num_processes + 1) > len(self.tokens):
-            self.current_shard = (self.current_shard + 1) % len(self.shards)
-            self.tokens = load_tokens(self.shards[self.current_shard])
-            self.current_position = self.B * self.T * self.process_rank
-        return x, y
-
 
 
 class MTDataset(Dataset):
@@ -109,9 +57,3 @@ class MTDataset(Dataset):
     
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
         pass
-
-
-
-@dataclass
-class Hyper:
-    pass
