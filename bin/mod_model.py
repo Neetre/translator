@@ -5,6 +5,7 @@ Imported optimizations from the nanoGPT model
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.nn.attention.flex_attention import flex_attention
 import math
 from train import MTConfig
 

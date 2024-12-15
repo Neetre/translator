@@ -7,7 +7,8 @@ from dataclasses import dataclass
 import torch.distributed as dist
 
 from load_WMT import BASE_DIR, DATA_ROOT, LANGUAGE_PAIRS
-
+from train import init_distributed
+ddp_rank, ddp_local_rank, ddp_world_size, device, master_process = init_distributed()
 
 @dataclass
 class MTConfig:
@@ -19,6 +20,7 @@ class MTConfig:
     dropout : float = 0.1
     pad_token: int = 0
     max_seq_len: int = 1024
+    batch_size: int = 8
 
 
 class MTDataset(Dataset):
@@ -50,10 +52,99 @@ class MTDataset(Dataset):
             print(f"Loaded dataset for {split} split with {len(self.src_shards)} shards")
 
     def load_shard(self, shard_idx: int) -> None:
-        pass
+        src_path = os.path.join(self.data_dir, self.src_shards[shard_idx])
+        tgt_path = os.path.join(self.data_dir, self.tgt_shards[shard_idx])
+        self.current_src = torch.from_numpy(np.load(src_path)).long()
+        self.current_tgt = torch.from_numpy(np.load(tgt_path)).long()
+        assert len(self.current_src) == len(self.current_tgt), "Mismatched number of source and target tokens"
+        self.current_size = len(self.current_src)
 
     def __len__(self):
         return self.current_size
     
     def __getitem__(self, idx) -> Dict[str, torch.Tensor]:
-        pass
+        if idx >= self.current_size:
+            self.current_shard_idx = (self.current_shard_idx + 1) % len(self.src_shards)
+            self.load_shard(self.current_shard_idx)
+            idx = idx % self.current_size
+
+        src = self.current_src[idx]
+        tgt = self.current_tgt[idx]
+
+        return {
+            "source": src[:self.max_seq_len],
+            "target": tgt[:self.max_seq_len]
+        }
+    
+def create_padding_mask(batch: torch.Tensor, pad_token: int) -> torch.Tensor:
+    return (batch == pad_token).unsqueeze(1).unsqueeze(2)
+
+
+def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict[str, torch.Tensor]:
+    max_src_len = max(len(item['source']) for item in batch)
+    max_tgt_len = max(len(item['target']) for item in batch)
+
+    batch_size = len(batch)
+    src_padded = torch.full((batch_size, max_src_len), pad_token, dtype=torch.long)
+    tgt_padded = torch.full((batch_size, max_tgt_len), pad_token, dtype=torch.long)
+
+    for i, item in enumerate(batch):
+        src_len = len(item['source'])
+        tgt_len = len(item['target'])
+        src_padded[i, :src_len] = item['source']
+        tgt_padded[i, :tgt_len] = item['target']
+    
+    src_padding_mask = create_padding_mask(src_padded, pad_token)
+    tgt_padding_mask = create_padding_mask(tgt_padded, pad_token)
+
+    tgt_input = tgt_padded[:, :-1]
+    tgt_output = tgt_padded[:, 1:]
+
+    return {
+        'source': src_padded,
+        'target_input': tgt_input,
+        'target_output': tgt_output,
+        'src_padding_mask': src_padding_mask,
+        'tgt_padding_mask': tgt_padding_mask,
+        'src_lengths': torch.tensor([len(item['source']) for item in batch]),
+        'tgt_lengths': torch.tensor([len(item['target']) for item in batch])
+    }
+
+
+def get_dataloader(
+        data_dir: str,
+        split: str,
+        batch_size: int,
+        max_seq_len: int = 512,
+        num_workers: int = 4,
+        shuffle: bool = True
+        ) -> DataLoader:
+    
+    dataset = MTDataset(data_dir, split, max_seq_len, ddp_rank, ddp_world_size)
+    if ddp_rank is not None:
+        sampler = DistributedSampler(
+            dataset,
+            num_replicas=ddp_world_size,
+            rank=ddp_rank,
+            shuffle=shuffle
+        )
+    else:
+        sampler = None
+
+    return DataLoader(
+        dataset,
+        batch_size=batch_size,
+        shuffle=(sampler is None and shuffle),
+        num_workers=num_workers,
+        collate_fn=lambda b: collate_fn(b, pad_token=0),
+        pin_memory=True,
+        sampler=sampler
+    )
+
+
+if __name__ == '__main__':
+    config = MTConfig()
+    train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len)
+    for batch in train_loader:
+        print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
+        break
