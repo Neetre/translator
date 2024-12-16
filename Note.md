@@ -35,7 +35,7 @@ Languages extracted from WMT19 dataset:
 - [METEOR](https://spotintelligence.com/2024/08/26/meteor-metric-in-nlp-how-it-works-how-to-tutorial-in-python/)
 - [BERTScore](https://huggingface.co/spaces/evaluate-metric/bertscore) 
 
-## Optemization
+## Optimization
 
 - [Muon](https://www.perplexity.ai/search/muon-optimizer-deep-learning-GcnuaC__Qu2FCqBFamaQwA#0)
 
