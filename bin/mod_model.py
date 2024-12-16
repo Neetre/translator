@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.attention.flex_attention import flex_attention
 import math
-from train import MTConfig
+from data_loader import MTConfig
 
 def norm(x):
     """RMS normalization from nanoGPT"""
@@ -136,3 +136,31 @@ class TransformerModel(nn.Module):
         mask = mask.float().masked_fill(mask == 0, float('-inf'))
         mask = mask.masked_fill(mask == 1, float(0.0))
         return mask
+
+    def configure_optimizers(self, weight_decay, learning_rate, device_type, master_process=False, group_params=True):
+        """Configure AdamW optimizer with optional parameter grouping and fused kernel usage."""
+        param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+
+        if group_params:
+            decay_params = [p for n, p in param_dict.items() if p.dim() >= 2]
+            nodecay_params = [p for n, p in param_dict.items() if p.dim() < 2]
+            optim_groups = [
+                {"params": decay_params, "weight_decay": weight_decay},
+                {"params": nodecay_params, "weight_decay": 0.0},
+            ]
+            num_decay_params = sum(p.numel() for p in decay_params)
+            num_nodecay_params = sum(p.numel() for p in nodecay_params)
+            if master_process:
+                print(f"num decayed parameter tensors: {len(decay_params)}, with {num_decay_params:,} parameters")
+                print(f"num non-decayed parameter tensors: {len(nodecay_params)}, with {num_nodecay_params:,} parameters")
+        else:
+            optim_groups = [{"params": param_dict.values(), "weight_decay": weight_decay}]
+
+        use_fused = hasattr(torch.optim.AdamW, 'fused') and device_type == "cuda"
+        if master_process:
+            print(f"using fused AdamW: {use_fused}")
+
+        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=(0.9, 0.95), eps=1e-8, fused=use_fused)
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=100)
+
+        return {"optimizer": optimizer, "lr_scheduler": scheduler}

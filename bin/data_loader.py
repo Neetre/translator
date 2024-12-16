@@ -6,7 +6,7 @@ from typing import List, Tuple, Dict, Optional
 from dataclasses import dataclass
 import torch.distributed as dist
 
-from load_WMT import BASE_DIR, DATA_ROOT, LANGUAGE_PAIRS
+from load_WMT import DATA_ROOT
 from train import init_distributed
 ddp_rank, ddp_local_rank, ddp_world_size, device, master_process = init_distributed()
 
@@ -21,6 +21,7 @@ class MTConfig:
     pad_token: int = 0
     max_seq_len: int = 1024
     batch_size: int = 8
+    use_compiler: bool = False
 
 
 class MTDataset(Dataset):
