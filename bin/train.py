@@ -13,9 +13,13 @@ import sys
 with open(sys.argv[0]) as f:
     code = f.read()
 
-from data_loader import MTDataset, MTConfig
+
+from data_loader import get_dataloader, MTConfig, init_distributed
 from load_WMT import DATA_ROOT
 from mod_model import TransformerModel
+
+ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type = init_distributed()
+
 
 config = MTConfig()
 @dataclass
@@ -29,41 +33,11 @@ class Hyper:
     weight_decay : float = 0.01
     val_loss_every : int = 225
     bert_score_every: int = 1000
-    log_dir: str = "training_logs"
+    log_dir: str = "../training_logs"
 args = Hyper()
 
 os.makedirs(args.log_dir, exist_ok=True)
 log_file = os.path.join(args.log_dir, "training_log.txt")
-
-
-def init_distributed():
-    ddp = int(os.environ.get('RANK', -1)) != -1
-    if ddp:
-        assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
-        init_process_group(backend='nccl')
-        ddp_rank = int(os.environ['RANK'])
-        ddp_local_rank = int(os.environ['LOCAL_RANK'])
-        ddp_world_size = int(os.environ['WORLD_SIZE'])
-        device = f'cuda:{ddp_local_rank}'
-        torch.cuda.set_device(device)
-        master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
-    else:
-        # vanilla, non-DDP run
-        ddp_rank = 0
-        ddp_local_rank = 0
-        ddp_world_size = 1
-        master_process = True
-        device = "cpu"
-        if torch.cuda.is_available():
-            device = "cuda"
-        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-            device = "mps"
-        print(f"using device: {device}")
-
-    device_type = "cuda" if device.startswith("cuda") else "cpu"
-    return ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type
-
-ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type = init_distributed()
 
 torch.manual_seed(1337)
 if torch.cuda.is_available():
@@ -78,8 +52,8 @@ if master_process:
 
 torch.set_float32_matmul_precision('high')
 
-train_loader = MTDataset(DATA_ROOT, 'train', config.max_seq_len, ddp_rank, ddp_world_size)
-val_loader = MTDataset(DATA_ROOT, 'val', config.max_seq_len, ddp_rank, ddp_world_size)
+train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len)
+val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len)
 
 model = TransformerModel(config)
 model.to(device)

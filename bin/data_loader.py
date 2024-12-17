@@ -2,25 +2,53 @@ import os
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
-from typing import List, Tuple, Dict, Optional
+from torch.distributed import init_process_group
+from typing import List, Dict, Optional
 from dataclasses import dataclass
-import torch.distributed as dist
 
 from load_WMT import DATA_ROOT
-from train import init_distributed
-ddp_rank, ddp_local_rank, ddp_world_size, device, master_process = init_distributed()
+
+
+def init_distributed():
+    ddp = int(os.environ.get('RANK', -1)) != -1
+    if ddp:
+        assert torch.cuda.is_available(), "for now i think we need CUDA for DDP"
+        init_process_group(backend='nccl')
+        ddp_rank = int(os.environ['RANK'])
+        ddp_local_rank = int(os.environ['LOCAL_RANK'])
+        ddp_world_size = int(os.environ['WORLD_SIZE'])
+        device = f'cuda:{ddp_local_rank}'
+        torch.cuda.set_device(device)
+        master_process = ddp_rank == 0 # this process will do logging, checkpointing etc.
+    else:
+        # vanilla, non-DDP run
+        ddp_rank = 0
+        ddp_local_rank = 0
+        ddp_world_size = 1
+        master_process = True
+        device = "cpu"
+        if torch.cuda.is_available():
+            device = "cuda"
+        elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+            device = "mps"
+        print(f"using device: {device}")
+
+    device_type = "cuda" if device.startswith("cuda") else "cpu"
+    return ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type
+
+ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type = init_distributed()
 
 @dataclass
 class MTConfig:
     vocab_size : int = 100352 # 100257 is not divisible by 128 so better 100352 tiktoken = cl100k_base
     num_layers : int = 12  # 6 encoder + 6 decoder
-    num_heads : int = 6 # head dim 128
+    num_heads : int = 8 # head dim 128
     model_dim : int = 1024
     dim_feedforward : int = 4096
     dropout : float = 0.1
     pad_token: int = 0
     max_seq_len: int = 1024
-    batch_size: int = 8
+    batch_size: int = 64
     use_compiler: bool = False
 
 
@@ -111,7 +139,6 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict
         'tgt_lengths': torch.tensor([len(item['target']) for item in batch])
     }
 
-
 def get_dataloader(
         data_dir: str,
         split: str,
@@ -141,7 +168,6 @@ def get_dataloader(
         pin_memory=True,
         sampler=sampler
     )
-
 
 if __name__ == '__main__':
     config = MTConfig()
