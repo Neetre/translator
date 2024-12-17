@@ -58,10 +58,18 @@ Extract from Modded-NanoGPT:
 - [X] scegliere cosa fare on il tokenizer, o custom training, o tiktoken. Scelta: tiktoken cl100k_base;
 - [X] Dataloaders;
 - [X] Testing tokenizer;
-- [] Creazione del modello;
-- [] Ottimizzazione;
+- [X] Creazione del modello;
+- [X] Ottimizzazione;
 - [] Training del modello;
 - [] Finetune? (È necessaria?);
 - [] Evaluation;
 - [] Deploy (website, load the model on hf);
- 
+
+## Notes
+
+- No Muon optimizer yet;
+
+## Parameters
+
+17/12/2024: mod_model.py: total parameters: 484.64M
+            model_flex.py: total parameters: 484.50M
