@@ -15,12 +15,14 @@ from typing import Dict, Tuple
 parser = argparse.ArgumentParser(description="Download and preprocess WMT19 data")
 parser.add_argument("-d", "--data_dir", type=str, default="../data/WMT19", help="Directory to save the data")
 parser.add_argument("-s", "--shard_size", type=int, default=10**8, help="Size of each shard in tokens")
+parser.add_argument("-m", "--max_pairs", type=int, default=10**6, help="Maximum number of sentence pairs to process")
 args = parser.parse_args()
 
 
 LANGUAGE_PAIRS = ['de-en', 'ru-en', 'zh-en']
 BASE_DIR = os.path.dirname(__file__)
 DATA_ROOT = os.path.join(BASE_DIR, "..", "data")
+max_seq_len = 1024
 
 
 def get_data_dir(lang_pair, split):
@@ -72,6 +74,7 @@ def preprocess_dataset(lang_pair: str):
     src_tokens_buffer = []
     tgt_tokens_buffer = []
     total_tokens = 0
+    processed_pairs = 0
 
     nprocs = max(1, mp.cpu_count() - 2)
     print(f"Using {nprocs} processes")
@@ -82,11 +85,19 @@ def preprocess_dataset(lang_pair: str):
         for src_toks, tgt_toks in tqdm(pool.imap(partial_tokenizer, dataset, chunksize=16),
                                      unit="tokens",
                                      desc=f"Processing {lang_pair}", ):
+            
+            if processed_pairs >= args.max_pairs:
+                break
+
+            processed_pairs += 1
+
+            if len(src_toks) > max_seq_len or len(tgt_toks) > max_seq_len:
+                continue
+
             src_tokens_buffer.append(src_toks)
             tgt_tokens_buffer.append(tgt_toks)
             total_tokens += len(src_toks) + len(tgt_toks)
 
-            # Write shard when buffer is full
             if total_tokens >= args.shard_size:
                 src_shard = np.concatenate(src_tokens_buffer)
                 tgt_shard = np.concatenate(tgt_tokens_buffer)
