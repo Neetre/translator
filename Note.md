@@ -25,7 +25,10 @@ Languages extracted from WMT19 dataset:
 
 ## Datasets
 
-- [WMT19](https://huggingface.co/datasets/wmt/wmt19)
+- [WMT19](https://huggingface.co/datasets/wmt/wmt19) : Multiple languages
+- [AI Hub Ko-En Parallel Corpus](https://ko-nlp.github.io/Korpora/en-docs/corpuslist/aihub_translation.html) : Only Korean-English
+- [KrBert Corpus](https://www.kaggle.com/datasets/junbumlee/kcbert-pretraining-corpus-korean-news-comments/data) : Only Korean
+- [laion-translated-to-en-korean-subset](Bingsu/laion-translated-to-en-korean-subset) : Also Korean-English
 
 ## Evaluation
 

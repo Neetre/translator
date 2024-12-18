@@ -15,7 +15,7 @@ from typing import Dict, Tuple
 parser = argparse.ArgumentParser(description="Download and preprocess WMT19 data")
 parser.add_argument("-d", "--data_dir", type=str, default="../data/WMT19", help="Directory to save the data")
 parser.add_argument("-s", "--shard_size", type=int, default=10**8, help="Size of each shard in tokens")
-parser.add_argument("-m", "--max_pairs", type=int, default=10**6, help="Maximum number of sentence pairs to process")
+parser.add_argument("-m", "--max_pairs", type=int, default=10**7, help="Maximum number of sentence pairs to process")
 args = parser.parse_args()
 
 

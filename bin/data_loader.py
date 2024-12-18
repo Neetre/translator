@@ -41,13 +41,13 @@ ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_ty
 @dataclass
 class MTConfig:
     vocab_size : int = 100352 # 100257 is not divisible by 128 so better 100352 tiktoken = cl100k_base
-    num_layers : int = 12  # 6 encoder + 6 decoder
-    num_heads : int = 8 # head dim 128
+    num_layers : int = 24  # 6 encoder + 6 decoder
+    num_heads : int = 16 # head dim 128
     model_dim : int = 1024
     dim_feedforward : int = 4096
     dropout : float = 0.1
     pad_token: int = 0
-    max_seq_len: int = 1024
+    max_seq_len: int = 512  # 512 for now, but will be 1024
     batch_size: int = 64
     use_compiler: bool = False
 
