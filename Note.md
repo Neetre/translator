@@ -25,6 +25,8 @@ Languages extracted from WMT19 dataset:
 
 ## Datasets
 
+- [Opus](https://opus.nlpl.eu) : Multiple languages, the biggest dataset
+- [Opus API](https://opus.nlpl.eu/opusapi/)
 - [WMT19](https://huggingface.co/datasets/wmt/wmt19) : Multiple languages
 - [Ko](https://github.com/ko-nlp/Korpora)
 - [AI Hub Ko-En Parallel Corpus](https://ko-nlp.github.io/Korpora/en-docs/corpuslist/aihub_translation.html) : Only Korean-English
