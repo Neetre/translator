@@ -186,6 +186,7 @@ if __name__ == "__main__":
     corpus = "CCMatrix"
     src_lang = "en"
     trc_lang = "ko"
-    download_opus_data(corpus, src_lang, trc_lang)
+    if not os.path.exists(os.path.join(DATA_ROOT + "_en-ko", "en-ko.txt.zip")):
+        download_opus_data(corpus, src_lang, trc_lang)
     preprocess_dataset()
     print("All done!")
