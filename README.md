@@ -50,6 +50,11 @@ Or follow the steps below:
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Acknowledgements
+
+Look at [CITATIONS.md](CITATIONS.md) to get more infos about the sources used in this project.
+Or look at [Note](Note.md) to get more infos about the whole process.
+
 ## Author
 
 [Neetre](https://github.com/Neetre)
