@@ -8,18 +8,13 @@ import torch.nn.functional as F
 import torch.distributed as dist
 from torch.distributed import init_process_group, destroy_process_group
 from torch.nn.parallel import DistributedDataParallel as DDP
-
-import sys
-with open(sys.argv[0]) as f:
-    code = f.read()
-
+import torch.multiprocessing as mp
 
 from data_loader import get_dataloader, MTConfig, init_distributed
 from load_WMT import DATA_ROOT
 from mod_model import TransformerModel
 
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type = init_distributed()
-
 
 config = MTConfig()
 @dataclass
@@ -52,8 +47,8 @@ if master_process:
 
 torch.set_float32_matmul_precision('high')
 
-train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len)
-val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len)
+train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len, num_workers=max(1, mp.cpu_count() - 2))
+val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len, num_workers=max(1, mp.cpu_count() - 2))
 
 model = TransformerModel(config)
 model.to(device)
@@ -162,7 +157,7 @@ def train():
                 with open(log_file, "a") as f:
                     f.write(f"{step} val {val_loss_accum.item():.4f}\n")
                 
-                if step > 0 and step % 5000 == 0:
+                if step > 0 and step % 2000 == 0:
                     save_checkpoint(step, val_loss_accum.item())
 
         model.train()

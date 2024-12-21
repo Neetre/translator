@@ -6,7 +6,7 @@ This file contains a list of all the sources that were used in the creation of t
 
 ### Modded NanoGPT
 
-```
+``` text
 @misc{modded_nanogpt_2024,
   author       = {Keller Jordan and Jeremy Bernstein and Brendan Rappazzo and
                   @fernbear.bsky.social and Boza Vlado and You Jiacheng and
@@ -20,7 +20,7 @@ This file contains a list of all the sources that were used in the creation of t
 
 ### WMT19
 
-```
+``` text
 @ONLINE {wmt19translate,
     author = "Wikimedia Foundation",
     title  = "ACL 2019 Fourth Conference on Machine Translation (WMT19), Shared Task: Machine Translation of News",
@@ -30,7 +30,7 @@ This file contains a list of all the sources that were used in the creation of t
 
 ### KoNLP
 
-```
+``` text
 @inproceedings{park2014konlpy,
   title={KoNLPy: Korean natural language processing in Python},
   author={Park, Eunjeong L. and Cho, Sungzoon},
@@ -43,7 +43,7 @@ This file contains a list of all the sources that were used in the creation of t
 
 ### AI Hub Ko-En Parallel Corpus
 
-```
+``` text
 @ONLINE {aihub_translation,
     author = "KoNLP",
     title  = "AI Hub Ko-En Parallel Corpus",
@@ -53,7 +53,7 @@ This file contains a list of all the sources that were used in the creation of t
 
 ### BERTScore
 
-```
+``` text
 @inproceedings{bert-score,
   title={BERTScore: Evaluating Text Generation with BERT},
   author={Tianyi Zhang* and Varsha Kishore* and Felix Wu* and Kilian Q. Weinberger and Yoav Artzi},
