@@ -5,8 +5,11 @@ from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from torch.distributed import init_process_group
 from typing import List, Dict, Optional
 from dataclasses import dataclass
-
+import tiktoken
 from load_WMT import DATA_ROOT
+
+enc = tiktoken.get_encoding("cl100k_base")
+EOT_ID = enc._special_tokens["<|endoftext|>"]  # Start of text token
 
 
 def init_distributed():
@@ -67,7 +70,7 @@ class MTDataset(Dataset):
         self.world_size = world_size
 
         self.src_shards = sorted([f for f in os.listdir(data_dir) if f.startswith('src_')])
-        self.tgt_shards = sorted([f for f in os.listdir(data_dir) if f.startswith('tgt_')])
+        self.tgt_shards = sorted([f for f in os.listdir(data_dir) if f.startswith('trg_')])
         assert len(self.src_shards) == len(self.tgt_shards), "Mismatched number of source and target shards"
 
         if rank is not None and world_size is not None:
@@ -83,10 +86,26 @@ class MTDataset(Dataset):
     def load_shard(self, shard_idx: int) -> None:
         src_path = os.path.join(self.data_dir, self.src_shards[shard_idx])
         tgt_path = os.path.join(self.data_dir, self.tgt_shards[shard_idx])
+
         self.current_src = torch.from_numpy(np.load(src_path)).long()
         self.current_tgt = torch.from_numpy(np.load(tgt_path)).long()
-        assert len(self.current_src) == len(self.current_tgt), "Mismatched number of source and target tokens"
-        self.current_size = len(self.current_src)
+
+        self.src_eot_indices = (self.current_src == EOT_ID).nonzero().squeeze(-1)  # Find the indices of the EOT tokens
+        self.tgt_eot_indices = (self.current_tgt == EOT_ID).nonzero().squeeze(-1)
+
+        self.src_eot_indices = torch.cat([self.src_eot_indices, torch.tensor([len(self.current_src)])])         # Add the end index to make slicing easier
+        self.tgt_eot_indices = torch.cat([self.tgt_eot_indices, torch.tensor([len(self.current_tgt)])])
+        
+        # Debugging statements
+        # print(f"Source length: {len(self.current_src)} tokens")
+        # print(f"Target length: {len(self.current_tgt)} tokens")
+        # print(f"Source EOT indices: {self.src_eot_indices}")
+        # print(f"Target EOT indices: {self.tgt_eot_indices}")
+        # print(f"Source EOT count: {(self.current_src == EOT_ID).sum().item()}")
+        # print(f"Target EOT count: {(self.current_tgt == EOT_ID).sum().item()}")
+
+        assert len(self.src_eot_indices) == len(self.tgt_eot_indices), "Mismatched number of source and target sequences"
+        self.current_size = len(self.src_eot_indices) - 1  # -1 because we added the end index
 
     def __len__(self):
         return self.current_size
@@ -97,16 +116,26 @@ class MTDataset(Dataset):
             self.load_shard(self.current_shard_idx)
             idx = idx % self.current_size
 
-        src = self.current_src[idx]
-        tgt = self.current_tgt[idx]
+        src_start = self.src_eot_indices[idx]
+        src_end = self.src_eot_indices[idx + 1]
+        tgt_start = self.tgt_eot_indices[idx]
+        tgt_end = self.tgt_eot_indices[idx + 1]
+
+        src = self.current_src[src_start:src_end]
+        tgt = self.current_tgt[tgt_start:tgt_end]
 
         return {
             "source": src[:self.max_seq_len],
             "target": tgt[:self.max_seq_len]
         }
-    
+
+
 def create_padding_mask(batch: torch.Tensor, pad_token: int) -> torch.Tensor:
     return (batch == pad_token).unsqueeze(1).unsqueeze(2)
+
+
+def create_attn_mask(batch: torch.Tensor, pad_token: int) -> torch.Tensor:
+    return (batch != pad_token).unsqueeze(1).unsqueeze(2).float()
 
 
 def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict[str, torch.Tensor]:
@@ -126,15 +155,20 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict
     src_padding_mask = create_padding_mask(src_padded, pad_token)
     tgt_padding_mask = create_padding_mask(tgt_padded, pad_token)
 
+    src_attn_mask = create_attn_mask(src_padded, pad_token)
+    tgt_attn_mask = create_attn_mask(tgt_padded, pad_token)
+
     tgt_input = tgt_padded[:, :-1]
     tgt_output = tgt_padded[:, 1:]
 
     return {
-        'source': src_padded,
-        'target_input': tgt_input,
-        'target_output': tgt_output,
-        'src_padding_mask': src_padding_mask,
-        'tgt_padding_mask': tgt_padding_mask,
+        'source': src_padded,  # used for training
+        'target_input': tgt_input,  # used for training
+        'target_output': tgt_output,  # used for calculating loss
+        'src_padding_mask': src_padding_mask,  # used in encoder
+        'tgt_padding_mask': tgt_padding_mask,  # used in decoder
+        'src_attn_mask': src_attn_mask,  # used in encoder
+        'tgt_attn_mask': tgt_attn_mask,   # used in decoder
         'src_lengths': torch.tensor([len(item['source']) for item in batch]),
         'tgt_lengths': torch.tensor([len(item['target']) for item in batch])
     }
@@ -147,7 +181,8 @@ def get_dataloader(
         num_workers: int = 4,
         shuffle: bool = True
         ) -> DataLoader:
-    
+    data_dir = os.path.join(data_dir, split)
+
     dataset = MTDataset(data_dir, split, max_seq_len, ddp_rank, ddp_world_size)
     if ddp_rank is not None:
         sampler = DistributedSampler(
@@ -172,6 +207,13 @@ def get_dataloader(
 if __name__ == '__main__':
     config = MTConfig()
     train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len)
+    val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len)
     for batch in train_loader:
         print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
+        print(batch['src_attn_mask'].shape, batch['tgt_attn_mask'].shape)
+        break
+
+    for batch in val_loader:
+        print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
+        print(batch['src_attn_mask'].shape, batch['tgt_attn_mask'].shape)
         break
