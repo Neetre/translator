@@ -1,16 +1,30 @@
 import os
 import numpy as np
+import argparse
 import torch
 from torch.utils.data import Dataset, DataLoader, DistributedSampler
 from torch.distributed import init_process_group
 from typing import List, Dict, Optional
 from dataclasses import dataclass
+
 import tiktoken
-from load_WMT import DATA_ROOT
+from transformers import T5Tokenizer
 
-enc = tiktoken.get_encoding("cl100k_base")
-EOT_ID = enc._special_tokens["<|endoftext|>"]  # Start of text token
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")
 
+parser = argparse.ArgumentParser(description="Download and preprocess opus data")
+parser.add_argument("-f", "--fine_tune", action="store_true", help="Fine-tune a model, in this case T5")
+args = parser.parse_args()
+
+finetune = args.fine_tune
+
+if not finetune:
+    enc = tiktoken.get_encoding("cl100k_base")
+    EOT_ID = enc._special_tokens["<|endoftext|>"]  # Start of text token
+else:
+    model_name = model_name="t5-base"
+    enc = T5Tokenizer.from_pretrained(model_name)
+    EOT_ID = enc.eos_token_id
 
 def init_distributed():
     ddp = int(os.environ.get('RANK', -1)) != -1
@@ -34,7 +48,6 @@ def init_distributed():
             device = "cuda"
         elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
             device = "mps"
-        print(f"using device: {device}")
 
     device_type = "cuda" if device.startswith("cuda") else "cpu"
     return ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type
@@ -138,7 +151,9 @@ def create_attn_mask(batch: torch.Tensor, pad_token: int) -> torch.Tensor:
     return (batch != pad_token).unsqueeze(1).unsqueeze(2).float()
 
 
-def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict[str, torch.Tensor]:
+def collate_with_pad_token(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
+    """Standalone collate function that can be pickled."""
+    pad_token = 0  # Moved the pad_token inside the function
     max_src_len = max(len(item['source']) for item in batch)
     max_tgt_len = max(len(item['target']) for item in batch)
 
@@ -162,13 +177,13 @@ def collate_fn(batch: List[Dict[str, torch.Tensor]], pad_token: int = 0) -> Dict
     tgt_output = tgt_padded[:, 1:]
 
     return {
-        'source': src_padded,  # used for training
-        'target_input': tgt_input,  # used for training
-        'target_output': tgt_output,  # used for calculating loss
-        'src_padding_mask': src_padding_mask,  # used in encoder
-        'tgt_padding_mask': tgt_padding_mask,  # used in decoder
-        'src_attn_mask': src_attn_mask,  # used in encoder
-        'tgt_attn_mask': tgt_attn_mask,   # used in decoder
+        'source': src_padded,
+        'target_input': tgt_input,
+        'target_output': tgt_output,
+        'src_padding_mask': src_padding_mask,
+        'tgt_padding_mask': tgt_padding_mask,
+        'src_attn_mask': src_attn_mask,
+        'tgt_attn_mask': tgt_attn_mask,
         'src_lengths': torch.tensor([len(item['source']) for item in batch]),
         'tgt_lengths': torch.tensor([len(item['target']) for item in batch])
     }
@@ -199,20 +214,24 @@ def get_dataloader(
         batch_size=batch_size,
         shuffle=(sampler is None and shuffle),
         num_workers=num_workers,
-        collate_fn=lambda b: collate_fn(b, pad_token=0),
+        collate_fn=collate_with_pad_token,  # Direct reference to the function, no lambda
         pin_memory=True,
         sampler=sampler
     )
 
 if __name__ == '__main__':
+    print(f"using device: {device}")
     config = MTConfig()
     train_loader = get_dataloader(DATA_ROOT, 'train', config.batch_size, max_seq_len=config.max_seq_len)
     val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len)
+    
+    print("Loading training batch...")
     for batch in train_loader:
         print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
         print(batch['src_attn_mask'].shape, batch['tgt_attn_mask'].shape)
         break
 
+    print("\nLoading validation batch...")
     for batch in val_loader:
         print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
         print(batch['src_attn_mask'].shape, batch['tgt_attn_mask'].shape)

@@ -1,3 +1,4 @@
+import os
 import torch
 from torch.optim import AdamW
 from transformers import (
@@ -7,12 +8,15 @@ from transformers import (
 )
 from tqdm import tqdm
 from data_loader import get_dataloader, MTConfig
-from load_WMT import DATA_ROOT
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")
 
 class T5Trainer:
     def __init__(
         self,
         model_name="t5-base",
+        source_lang="English",
+        target_lang="Korean",
+        pre_tokenized=True,
         learning_rate=2e-5,
         max_grad_norm=1.0,
         num_epochs=3,
@@ -22,10 +26,76 @@ class T5Trainer:
         self.model = T5ForConditionalGeneration.from_pretrained(model_name)
         self.device = device
         self.model.to(self.device)
+
+        self.source_lang = source_lang
+        self.target_lang = target_lang
+        self.prefix = f"translate {source_lang} to {target_lang}: "
+        self.pre_tokenized = pre_tokenized
         
+        if self.pre_tokenized:
+            self.prefix_tokens = self.tokenizer(
+                self.prefix,
+                add_special_tokens=False,
+                return_tensors="pt"
+            ).input_ids[0]
+
         self.learning_rate = learning_rate
         self.max_grad_norm = max_grad_norm
         self.num_epochs = num_epochs
+
+    def prepare_batch(self, batch, split="train"):
+        """
+        Prepare a batch for training/evaluation, handling both pre-tokenized
+        and raw text inputs
+        """
+        if self.pre_tokenized:
+            # For pre-tokenized data
+            batch_size = batch['source'].size(0)
+            prefix_expanded = self.prefix_tokens.repeat(batch_size, 1).to(self.device)
+
+            input_ids = torch.cat([prefix_expanded, batch['source']], dim=1)
+
+            print("prefix_expanded shape:", prefix_expanded.shape)
+            print("src_attn_mask shape:", batch['src_attn_mask'].shape)
+
+            attention_mask = torch.cat([
+                torch.ones_like(prefix_expanded),
+                batch['src_attn_mask']
+            ], dim=1)
+
+            input_ids = input_ids.to(self.device)
+            attention_mask = attention_mask.to(self.device)
+            labels = batch['target_input'].to(self.device) if split == "train" else batch['target_output'].to(self.device)
+
+            return {
+                'source': input_ids,
+                'src_attn_mask': attention_mask,
+                'target_input': labels
+            }
+        else:
+            # For raw text data
+            input_texts = [self.prefix + text for text in batch['source_texts']]
+            inputs = self.tokenizer(
+                input_texts,
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+                max_length=512
+            ).to(self.device)
+
+            labels = self.tokenizer(
+                batch['target_texts'],
+                padding=True,
+                truncation=True,
+                return_tensors="pt",
+                max_length=512
+            ).input_ids.to(self.device)
+
+            return {
+                'input_ids': inputs.input_ids,
+                'src_attn_mask': inputs.attention_mask,
+                'target_input': labels
+            }
 
     def train(self, train_dataloader, val_dataloader):
         optimizer = AdamW(self.model.parameters(), lr=self.learning_rate)
@@ -45,9 +115,10 @@ class T5Trainer:
             train_bar = tqdm(train_dataloader, desc="Training")
             
             for batch in train_bar:
-                input_ids = batch['source'].to(self.device)
-                attention_mask = batch['src_attn_mask'].to(self.device)
-                labels = batch['target_input'].to(self.device)
+                prepared_batch = self.prepare_batch(batch, "train")
+                input_ids = prepared_batch['source'].to(self.device)
+                attention_mask = prepared_batch['src_attn_mask'].to(self.device)
+                labels = prepared_batch['target_input'].to(self.device)
 
                 self.model.zero_grad()
                 outputs = self.model(
@@ -90,6 +161,7 @@ class T5Trainer:
         with torch.no_grad():
             val_bar = tqdm(dataloader, desc="Validating")
             for batch in val_bar:
+                prepared_batch = self.prepare_batch(batch, "val")
                 input_ids = batch['source'].to(self.device)
                 attention_mask = batch['src_attn_mask'].to(self.device)
                 labels = batch['target_output'].to(self.device)

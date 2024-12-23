@@ -11,8 +11,9 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 import torch.multiprocessing as mp
 
 from data_loader import get_dataloader, MTConfig, init_distributed
-from load_WMT import DATA_ROOT
 from mod_model import TransformerModel
+
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")
 
 ddp, ddp_rank, ddp_local_rank, ddp_world_size, device, master_process, device_type = init_distributed()
 

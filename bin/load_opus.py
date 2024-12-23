@@ -4,7 +4,7 @@ import multiprocessing as mp
 import numpy as np
 import tiktoken
 from tqdm import tqdm
-from typing import Dict, Tuple, List, Iterator
+from typing import Dict, Tuple, List, Iterator, Union
 import requests
 import json
 import gzip
@@ -17,9 +17,9 @@ parser = argparse.ArgumentParser(description="Download and preprocess opus data"
 parser.add_argument("-f", "--fine_tune", action="store_true", help="Fine-tune a model, in this case T5")
 parser.add_argument("-d", "--data_dir", type=str, default="../data/opus", help="Directory to save the data")
 parser.add_argument("-s", "--shard_size", type=int, default=10**8, help="Size of each shard in tokens")
-parser.add_argument("-m", "--max_pairs", type=int, default=10**7, help="Maximum number of sentence pairs to process")
+parser.add_argument("-n", "--max_pairs", type=int, default=10**7, help="Maximum number of sentence pairs to process")
 parser.add_argument("-b", "--batch_size", type=int, default=1000, help="Number of sentences to process in each batch")
-parser.add_argument("--max_seq_len", type=int, default=1024, help="Maximum sequence length")
+parser.add_argument("-m", "--max_seq_len", type=int, default=512, help="Maximum sequence length")
 args = parser.parse_args()
 
 
@@ -128,80 +128,102 @@ def write_shard(src_tokens: np.ndarray, tgt_tokens: np.ndarray, split: str, shar
     print(f"Saved shard {shard_idx} to {src_path} and {tgt_path} with {len(src_tokens)} tokens")
 
 
-def process_batch(batch: List[Dict[str, str]], enc: tiktoken.Encoding, eot) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-    """Process a batch of sentences"""
+def process_batch_worker(batch, fine_tune, enc_name, max_seq_len):
+    """Worker function for processing a batch of sentences."""
+    if fine_tune:
+        enc = T5Tokenizer.from_pretrained(enc_name)
+        eot = enc.eos_token_id
+    else:
+        enc = tiktoken.get_encoding("cl100k_base")
+        eot = enc._special_tokens["<|endoftext|>"]
+
     src_tokens_list = []
     tgt_tokens_list = []
 
     for doc in batch:
-        src_tokens = [eot] + enc.encode_ordinary(doc["en"])
-        tgt_tokens = [eot] + enc.encode_ordinary(doc["ko"])
-        
-        if len(src_tokens) <= args.max_seq_len and len(tgt_tokens) <= args.max_seq_len:
+        if fine_tune:
+            src_tokens = [eot] + enc(
+                doc["en"],
+                padding=True,
+                truncation=True,
+                max_length=max_seq_len,
+                return_tensors="pt"
+            )["input_ids"].squeeze(0).numpy()
+            tgt_tokens = [eot] + enc(
+                doc["ko"],
+                padding=True,
+                truncation=True,
+                max_length=max_seq_len,
+                return_tensors="pt"
+            )["input_ids"].squeeze(0).numpy()
+        else:
+            src_tokens = [eot] + enc.encode_ordinary(doc["en"])
+            tgt_tokens = [eot] + enc.encode_ordinary(doc["ko"])
+
+        if len(src_tokens) <= max_seq_len and len(tgt_tokens) <= max_seq_len:
             src_tokens_list.append(np.array(src_tokens, dtype=np.uint32))
             tgt_tokens_list.append(np.array(tgt_tokens, dtype=np.uint32))
-    
+
     return src_tokens_list, tgt_tokens_list
 
 
 def preprocess_dataset():
-    dataset = DatasetIterator(os.path.join(DATA_ROOT+"_en-ko"), args.batch_size)
+    dataset = DatasetIterator(os.path.join(DATA_ROOT + "_en-ko"), args.batch_size)
 
-    if args.fine_tune:
-        model_name = "t5-base"
-        enc = T5Tokenizer.from_pretrained(model_name)
-        eot = enc.eos_token_id
-    else:
-        enc = tiktoken.get_encoding("cl100k_base")
-        eot = enc._special_tokens["<|endoftext|>"]  # Start of text token
+    model_name = "t5-base" if args.fine_tune else "cl100k_base"
+    nprocs = max(1, mp.cpu_count() - 2)
+    print(f"Using {nprocs} processes")
 
     shard_idx = 0
     src_tokens_buffer = []
     tgt_tokens_buffer = []
     total_tokens = 0
     processed_pairs = 0
-    
-    nprocs = max(1, mp.cpu_count() - 2)
-    print(f"Using {nprocs} processes")
-    
+
     with mp.Pool(nprocs) as pool:
         batch = []
-        
-        for doc in tqdm(dataset, desc="Processing documents", unit="pairs"):
+        futures = []
+
+        for doc in tqdm(dataset, desc="Processing documents", unit="pairs", total=args.max_pairs):
             if processed_pairs >= args.max_pairs:
                 break
-                
+
             batch.append(doc)
-            
+
             if len(batch) >= args.batch_size:
-                src_batch_tokens, tgt_batch_tokens = process_batch(batch, enc, eot)
-                
+                futures.append(pool.apply_async(process_batch_worker, (batch, args.fine_tune, model_name, args.max_seq_len)))
+                batch = []
+
+            while len(futures) >= nprocs:
+                result = futures.pop(0).get()
+                src_batch_tokens, tgt_batch_tokens = result
+
                 src_tokens_buffer.extend(src_batch_tokens)
                 tgt_tokens_buffer.extend(tgt_batch_tokens)
                 total_tokens += sum(len(t) for t in src_batch_tokens) + sum(len(t) for t in tgt_batch_tokens)
-                processed_pairs += len(batch)
-                
-                batch = []
-                
+                processed_pairs += len(src_batch_tokens)
+
                 if total_tokens >= args.shard_size:
                     src_shard = np.concatenate(src_tokens_buffer)
                     tgt_shard = np.concatenate(tgt_tokens_buffer)
-                    
+
                     split = "val" if shard_idx == 0 else "train"
                     write_shard(src_shard, tgt_shard, split, shard_idx)
-                    
+
                     src_tokens_buffer = []
                     tgt_tokens_buffer = []
                     total_tokens = 0
                     shard_idx += 1
-        
-        # Process remaining batch
+
         if batch:
-            src_batch_tokens, tgt_batch_tokens = process_batch(batch, enc)
+            futures.append(pool.apply_async(process_batch_worker, (batch, args.fine_tune, model_name, args.max_seq_len)))
+
+        for future in futures:
+            result = future.get()
+            src_batch_tokens, tgt_batch_tokens = result
             src_tokens_buffer.extend(src_batch_tokens)
             tgt_tokens_buffer.extend(tgt_batch_tokens)
-        
-        # Write final shard
+
         if src_tokens_buffer:
             src_shard = np.concatenate(src_tokens_buffer)
             tgt_shard = np.concatenate(tgt_tokens_buffer)
