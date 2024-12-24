@@ -35,12 +35,19 @@ tgt_unique_tokens = np.unique(tgt_shard)
 print(f"Unique source tokens: {src_unique_tokens}")
 print(f"Unique target tokens: {tgt_unique_tokens}")
 '''
+eot_at_start = False
 
 current_src = torch.from_numpy(np.load(src_path)).long()
 current_tgt = torch.from_numpy(np.load(tgt_path)).long()
 src_eot_indices = (current_src == EOT_ID).nonzero().squeeze(-1)
 tgt_eot_indices = (current_tgt == EOT_ID).nonzero().squeeze(-1)
-# Add the end index to make slicing easier
+
+if eot_at_start:
+    # Add -1 at start for first sequence when EOT is at start
+    src_eot_indices = torch.cat([torch.tensor([-1]), src_eot_indices])
+    tgt_eot_indices = torch.cat([torch.tensor([-1]), tgt_eot_indices])
+
+
 src_eot_indices = torch.cat([src_eot_indices, torch.tensor([len(current_src)])])
 tgt_eot_indices = torch.cat([tgt_eot_indices, torch.tensor([len(current_tgt)])])
 # Debugging statements

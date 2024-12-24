@@ -82,12 +82,14 @@ class MTDataset(Dataset):
                  max_seq_len: int,
                  rank: Optional[int] = None,
                  world_size: Optional[int] = None,
+                 eot_at_start: bool = True
                  ):
         self.data_dir = data_dir
         self.split = split
         self.max_seq_len = max_seq_len
         self.rank = rank
         self.world_size = world_size
+        self.eot_at_start = eot_at_start
 
         self.src_shards = sorted([f for f in os.listdir(data_dir) if f.startswith('src_')])
         self.tgt_shards = sorted([f for f in os.listdir(data_dir) if f.startswith('trg_')])
@@ -236,6 +238,11 @@ if __name__ == '__main__':
     for batch in train_loader:
         print(batch['source'].shape, batch['target_input'].shape, batch['target_output'].shape)
         print(batch['src_attn_mask'].shape, batch['tgt_attn_mask'].shape)
+        for i in range(5):
+            print(enc.decode(batch['source'][i].tolist()))
+            print(enc.decode(batch['target_input'][i].tolist()))
+            print(enc.decode(batch['target_output'][i].tolist()))
+            print()
         break
 
     print("\nLoading validation batch...")

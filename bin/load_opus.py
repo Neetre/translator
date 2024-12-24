@@ -149,14 +149,14 @@ def process_batch_worker(batch, fine_tune, enc_name, max_seq_len):
 
     for doc in batch:
         if fine_tune:
-            src_tokens = [eot] + enc(
+            src_tokens = enc(
                 doc["en"],
                 padding=True,
                 truncation=True,
                 max_length=max_seq_len,
                 return_tensors="pt"
             )["input_ids"].squeeze(0).numpy().tolist()
-            tgt_tokens = [eot] + enc(
+            tgt_tokens = enc(
                 doc["ko"],
                 padding=True,
                 truncation=True,
