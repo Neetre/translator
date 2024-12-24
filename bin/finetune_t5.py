@@ -6,6 +6,13 @@ from transformers import (
     T5Tokenizer,
     get_linear_schedule_with_warmup
 )
+
+import warnings
+import transformers
+warnings.filterwarnings("ignore")
+transformers.logging.set_verbosity_error()
+
+
 from tqdm import tqdm
 from data_loader import get_dataloader, MTConfig
 DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")

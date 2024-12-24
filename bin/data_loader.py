@@ -7,6 +7,13 @@ from torch.distributed import init_process_group
 from typing import List, Dict, Optional
 from dataclasses import dataclass
 
+
+import warnings
+import transformers
+warnings.filterwarnings("ignore")
+transformers.logging.set_verbosity_error()
+
+
 import tiktoken
 from transformers import T5Tokenizer
 
@@ -178,11 +185,11 @@ def collate_with_pad_token(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, to
 
     return {
         'source': src_padded,
-        'target_input': tgt_input,
-        'target_output': tgt_output,
+        'target_input': tgt_input,  # train on this
+        'target_output': tgt_output,  # compare with this
         'src_padding_mask': src_padding_mask,
         'tgt_padding_mask': tgt_padding_mask,
-        'src_attn_mask': src_attn_mask,
+        'src_attn_mask': src_attn_mask,  # mask out padding tokens
         'tgt_attn_mask': tgt_attn_mask,
         'src_lengths': torch.tensor([len(item['source']) for item in batch]),
         'tgt_lengths': torch.tensor([len(item['target']) for item in batch])
@@ -214,7 +221,7 @@ def get_dataloader(
         batch_size=batch_size,
         shuffle=(sampler is None and shuffle),
         num_workers=num_workers,
-        collate_fn=collate_with_pad_token,  # Direct reference to the function, no lambda
+        collate_fn=collate_with_pad_token,
         pin_memory=True,
         sampler=sampler
     )

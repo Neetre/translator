@@ -11,6 +11,14 @@ import gzip
 from zipfile import ZipFile
 from itertools import islice
 from contextlib import contextmanager
+
+
+import warnings
+import transformers
+warnings.filterwarnings("ignore")
+transformers.logging.set_verbosity_error()
+
+
 from transformers import T5Tokenizer
 
 parser = argparse.ArgumentParser(description="Download and preprocess opus data")
@@ -23,8 +31,7 @@ parser.add_argument("-m", "--max_seq_len", type=int, default=512, help="Maximum 
 args = parser.parse_args()
 
 
-BASE_DIR = os.path.dirname(__file__)
-DATA_ROOT = os.path.join(BASE_DIR, "..", "data", "opus")
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")
 max_seq_len = 1024
 shard_size = 10**8
 max_pairs = 10**7
@@ -148,14 +155,14 @@ def process_batch_worker(batch, fine_tune, enc_name, max_seq_len):
                 truncation=True,
                 max_length=max_seq_len,
                 return_tensors="pt"
-            )["input_ids"].squeeze(0).numpy()
+            )["input_ids"].squeeze(0).numpy().tolist()
             tgt_tokens = [eot] + enc(
                 doc["ko"],
                 padding=True,
                 truncation=True,
                 max_length=max_seq_len,
                 return_tensors="pt"
-            )["input_ids"].squeeze(0).numpy()
+            )["input_ids"].squeeze(0).numpy().tolist()
         else:
             src_tokens = [eot] + enc.encode_ordinary(doc["en"])
             tgt_tokens = [eot] + enc.encode_ordinary(doc["ko"])

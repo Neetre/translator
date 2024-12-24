@@ -3,11 +3,11 @@ import torch
 import tiktoken
 from transformers import T5Tokenizer
 model_name = "t5-base"
-# enc = T5Tokenizer.from_pretrained(model_name)
-# EOT_ID = enc.eos_token_id
+enc = T5Tokenizer.from_pretrained(model_name)
+EOT_ID = enc.eos_token_id
 # print(enc.decode(EOT_ID))
-enc = tiktoken.get_encoding("cl100k_base")
-EOT_ID = enc._special_tokens["<|endoftext|>"] 
+# enc = tiktoken.get_encoding("cl100k_base")
+# EOT_ID = enc._special_tokens["<|endoftext|>"] 
 print(f"End of text token ID: {EOT_ID}")
 
 # Example paths to the shard files
@@ -51,3 +51,22 @@ print(f"Target EOT indices: {tgt_eot_indices}")
 print(f"Source EOT count: {(current_src == EOT_ID).sum().item()}")
 print(f"Target EOT count: {(current_tgt == EOT_ID).sum().item()}")
 assert len(src_eot_indices) == len(tgt_eot_indices), "Mismatched number of source and target sequences"
+
+src_tokens = enc(
+        "Hello, how are you?",
+        padding=True,
+        truncation=True,
+        max_length=512,
+        return_tensors="pt"
+    )["input_ids"].squeeze(0)
+
+src_tokens_numpy = src_tokens.numpy()
+src_tokens_tolist = [EOT_ID] + src_tokens.numpy().tolist()
+
+print(f"Source tokens (tensor): {src_tokens}")
+print(f"Source tokens (list): {src_tokens_tolist}")
+print(f"Source tokens (numpy): {src_tokens_numpy}")
+print(f"Decoded source tokens: {enc.decode(src_tokens_tolist)}")  # Decoded source tokens: </s> Hello, how are you?</s>
+print(f"Decoded source tokens (numpy): {enc.decode(src_tokens_numpy)}")  # Decoded source tokens (numpy): Hello, how are you?</s>
+
+
