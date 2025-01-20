@@ -58,15 +58,12 @@ class TransformerModel(nn.Module):
         self.dropout = config.dropout
         self.num_encoder_layers = config.num_layers // 2
         self.num_decoder_layers = config.num_layers - self.num_encoder_layers
-        
-        # Embedding layers with more efficient linear projections
+
         self.src_embed = nn.Embedding(self.vocab_size, self.d_model)
         self.tgt_embed = nn.Embedding(self.vocab_size, self.d_model)
-        
-        # Rotary position encoding instead of standard positional encoding
+
         self.pos_encoder = RotaryEmbedding(self.d_model // self.nhead)
-        
-        # Transformer with normalization and attention modifications
+
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.d_model,
             nhead=self.nhead,
@@ -87,7 +84,6 @@ class TransformerModel(nn.Module):
         self.encoder = nn.TransformerEncoder(encoder_layer, self.num_encoder_layers)
         self.decoder = nn.TransformerDecoder(decoder_layer, self.num_decoder_layers)
 
-        # Output projection with casting
         self.output_layer = CastedLinear(self.d_model, self.vocab_size)
         nn.init.normal_(self.output_layer.weight, mean=0.0, std=0.02)
 
@@ -97,8 +93,7 @@ class TransformerModel(nn.Module):
                 src_padding_mask=None, tgt_padding_mask=None):
         src_embedded = self.src_embed(src) * math.sqrt(self.d_model)
         tgt_embedded = self.tgt_embed(tgt) * math.sqrt(self.d_model)
-        
-        # Apply rotary position encoding
+
         B, T, E = src_embedded.shape
         H = self.nhead
         src_reshaped = src_embedded.view(B, T, H, E//H)
@@ -106,8 +101,7 @@ class TransformerModel(nn.Module):
         
         src_encoded = self.pos_encoder(src_reshaped).view(B, T, E)
         tgt_encoded = self.pos_encoder(tgt_reshaped).view(B, T, E)
-        
-        # Generate masks if not provided
+
         if tgt_mask is None:
             tgt_mask = self.generate_square_subsequent_mask(tgt.size(1))
             tgt_mask = tgt_mask.to(tgt.device)

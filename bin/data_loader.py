@@ -27,7 +27,7 @@ finetune = args.fine_tune
 
 if not finetune:
     enc = tiktoken.get_encoding("cl100k_base")
-    EOT_ID = enc._special_tokens["<|endoftext|>"]  # Start of text token
+    EOT_ID = enc._special_tokens["<|endoftext|>"]
 else:
     model_name = model_name="t5-base"
     enc = T5Tokenizer.from_pretrained(model_name)
@@ -112,10 +112,10 @@ class MTDataset(Dataset):
         self.current_src = torch.from_numpy(np.load(src_path)).long()
         self.current_tgt = torch.from_numpy(np.load(tgt_path)).long()
 
-        self.src_eot_indices = (self.current_src == EOT_ID).nonzero().squeeze(-1)  # Find the indices of the EOT tokens
+        self.src_eot_indices = (self.current_src == EOT_ID).nonzero().squeeze(-1)
         self.tgt_eot_indices = (self.current_tgt == EOT_ID).nonzero().squeeze(-1)
 
-        self.src_eot_indices = torch.cat([self.src_eot_indices, torch.tensor([len(self.current_src)])])         # Add the end index to make slicing easier
+        self.src_eot_indices = torch.cat([self.src_eot_indices, torch.tensor([len(self.current_src)])])
         self.tgt_eot_indices = torch.cat([self.tgt_eot_indices, torch.tensor([len(self.current_tgt)])])
         
         # Debugging statements
@@ -127,7 +127,7 @@ class MTDataset(Dataset):
         # print(f"Target EOT count: {(self.current_tgt == EOT_ID).sum().item()}")
 
         assert len(self.src_eot_indices) == len(self.tgt_eot_indices), "Mismatched number of source and target sequences"
-        self.current_size = len(self.src_eot_indices) - 1  # -1 because we added the end index
+        self.current_size = len(self.src_eot_indices) - 1
 
     def __len__(self):
         return self.current_size

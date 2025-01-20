@@ -143,7 +143,6 @@ class MultiHeadedAttention(nn.Module):
     def __init__(self, h, d_model, dropout=0.1):
         super(MultiHeadedAttention, self).__init__()
         assert d_model % h == 0
-        # We assume d_v always equals d_k
         self.d_k = d_model // h
         self.h = h
         self.linears = clones(nn.Linear(d_model, d_model), 4)
@@ -198,7 +197,6 @@ class PositionalEncoding(nn.Module):
         super(PositionalEncoding, self).__init__()
         self.dropout = nn.Dropout(p=dropout)
 
-        # Compute the positional encodings once in log space.
         pe = torch.zeros(max_len, d_model)
         position = torch.arange(0, max_len).unsqueeze(1)
         div_term = torch.exp(

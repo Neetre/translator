@@ -76,18 +76,14 @@ def test_MT5Tokenizer():
 
 def main():
     test_MT5Tokenizer()
-    # Initialize tokenizer
     tokenizer, eot_id = initialize_tokenizer()
-    
-    # Define paths
+
     src_path = '../data/opus/train/src_shard_000001.npy'
     tgt_path = '../data/opus/train/trg_shard_000001.npy'
 
-    # Load data
     src_shard, tgt_shard = load_shards(src_path, tgt_path)
     get_first_tokens(src_shard, tgt_shard)
 
-    # Get EOT indices
     data = get_indicies(src_path, tgt_path)  # current_src, current_tgt, src_eot_indices, tgt_eot_indices
     test_idx(*data)
     

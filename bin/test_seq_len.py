@@ -2,8 +2,7 @@ import tiktoken
 
 def analyze_token_length():
     enc = tiktoken.get_encoding("cl100k_base")
-    
-    # Sample text with 100 words
+
     text = "The quick brown fox jumps over the lazy dog. " * 10
     
     tokens = enc.encode(text)

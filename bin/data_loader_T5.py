@@ -101,14 +101,14 @@ class T5MTDataset(Dataset):
         self.current_src = torch.from_numpy(np.load(src_path)).long()
         self.current_tgt = torch.from_numpy(np.load(tgt_path)).long()
 
-        self.src_eot_indices = (self.current_src == EOT_ID).nonzero().squeeze(-1)  # Find the indices of the EOT tokens
+        self.src_eot_indices = (self.current_src == EOT_ID).nonzero().squeeze(-1)
         self.tgt_eot_indices = (self.current_tgt == EOT_ID).nonzero().squeeze(-1)
 
-        self.src_eot_indices = torch.cat([self.src_eot_indices, torch.tensor([len(self.current_src)])])         # Add the end index to make slicing easier
+        self.src_eot_indices = torch.cat([self.src_eot_indices, torch.tensor([len(self.current_src)])])
         self.tgt_eot_indices = torch.cat([self.tgt_eot_indices, torch.tensor([len(self.current_tgt)])])
 
         assert len(self.src_eot_indices) == len(self.tgt_eot_indices), "Mismatched number of source and target sequences"
-        self.current_size = len(self.src_eot_indices) - 1  # -1 because we added the end index
+        self.current_size = len(self.src_eot_indices) - 1
 
     def __len__(self):
         return self.current_size
@@ -143,7 +143,7 @@ def create_attn_mask(batch: torch.Tensor, pad_token: int) -> torch.Tensor:
 
 def collate_with_pad_token(batch: List[Dict[str, torch.Tensor]]) -> Dict[str, torch.Tensor]:
     """Standalone collate function that can be pickled."""
-    pad_token = 0  # Moved the pad_token inside the function
+    pad_token = 0 
     max_src_len = max(len(item['source']) for item in batch)
     max_tgt_len = max(len(item['target']) for item in batch)
 

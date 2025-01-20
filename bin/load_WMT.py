@@ -37,7 +37,6 @@ enc = tiktoken.get_encoding("cl100k_base")  # o200k_base - cl100k_base
 # vocab_size = enc.vocab_size # 100257, it is not divisible by 128, so might be better 100352
 
 
-# Handle both source and target languages
 def tokenize(doc: Dict, lang_pair: str) -> Tuple[np.ndarray, np.ndarray]:
     lang_src, lang_trg = lang_pair.split("-")
 
@@ -102,7 +101,6 @@ def preprocess_dataset(lang_pair: str):
                 src_shard = np.concatenate(src_tokens_buffer)
                 tgt_shard = np.concatenate(tgt_tokens_buffer)
 
-                # First shard goes to validation
                 split = "val" if shard_idx == 0 else "train"
                 write_shard(src_shard, tgt_shard, lang_pair, split, shard_idx)
 
@@ -111,7 +109,6 @@ def preprocess_dataset(lang_pair: str):
                 total_tokens = 0
                 shard_idx += 1
 
-        # Write final shard if there's remaining data
         if src_tokens_buffer:
             src_shard = np.concatenate(src_tokens_buffer)
             tgt_shard = np.concatenate(tgt_tokens_buffer)
