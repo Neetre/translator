@@ -13,7 +13,9 @@ My hope is to manage to train the from scratch model, but for now, I'll stick wi
 For the whole finetune part, I've created a new repo, this one was becomming too big.
 Here is the [repo](https://github.com/Neetre/mT5)
 
-Look at [Note](Note.md) ti get more infos about the whole process.
+Look at [Note](Note.md) to get more infos about the whole process.
+
+Click *[here](https://huggingface.co/Neetree/KoLama)* to see the model on Hugging Face.
 
 ## Installation
 
