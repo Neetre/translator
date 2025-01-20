@@ -18,8 +18,7 @@ import transformers
 warnings.filterwarnings("ignore")
 transformers.logging.set_verbosity_error()
 
-
-from transformers import T5Tokenizer
+from transformers import MT5Tokenizer
 
 parser = argparse.ArgumentParser(description="Download and preprocess opus data")
 parser.add_argument("-f", "--fine_tune", action="store_true", help="Fine-tune a model, in this case T5")
@@ -138,7 +137,7 @@ def write_shard(src_tokens: np.ndarray, tgt_tokens: np.ndarray, split: str, shar
 def process_batch_worker(batch, fine_tune, enc_name, max_seq_len):
     """Worker function for processing a batch of sentences."""
     if fine_tune:
-        enc = T5Tokenizer.from_pretrained(enc_name)
+        enc = MT5Tokenizer.from_pretrained("google/mt5-base")
         eot = enc.eos_token_id
     else:
         enc = tiktoken.get_encoding("cl100k_base")
@@ -158,7 +157,7 @@ def process_batch_worker(batch, fine_tune, enc_name, max_seq_len):
             )["input_ids"].squeeze(0).numpy().tolist()
             tgt_tokens = enc(
                 doc["ko"],
-                padding=True,
+                padding=False,
                 truncation=True,
                 max_length=max_seq_len,
                 return_tensors="pt"

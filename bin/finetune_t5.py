@@ -2,10 +2,12 @@ import os
 import torch
 from torch.optim import AdamW
 from transformers import (
-    T5ForConditionalGeneration,
-    T5Tokenizer,
+    MT5ForConditionalGeneration,
+    MT5Tokenizer,
     get_linear_schedule_with_warmup
 )
+from peft import LoraConfig, get_peft_model  # Import LoRA modules
+
 
 import warnings
 import transformers
@@ -15,12 +17,15 @@ transformers.logging.set_verbosity_error()
 
 from tqdm import tqdm
 from data_loader import get_dataloader, MTConfig
+
+
 DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'data', "opus")
+
 
 class T5Trainer:
     def __init__(
         self,
-        model_name="t5-base",
+        model_name="google/mt5-base",
         source_lang="English",
         target_lang="Korean",
         pre_tokenized=True,
@@ -29,16 +34,27 @@ class T5Trainer:
         num_epochs=3,
         device='cuda' if torch.cuda.is_available() else 'cpu'
     ):
-        self.tokenizer = T5Tokenizer.from_pretrained(model_name)
-        self.model = T5ForConditionalGeneration.from_pretrained(model_name)
+        self.tokenizer = MT5Tokenizer.from_pretrained(model_name)
+        self.model = MT5ForConditionalGeneration.from_pretrained(model_name)
+
+        lora_config = LoraConfig(
+            r=8,  # Rank of the low-rank matrices
+            lora_alpha=32,
+            target_modules=["q", "v"], 
+            lora_dropout=0.1,
+            bias="none",
+            task_type="SEQ_2_SEQ_LM"
+        )
+        self.model = get_peft_model(self.model, lora_config)
+
         self.device = device
         self.model.to(self.device)
 
         self.source_lang = source_lang
         self.target_lang = target_lang
-        self.prefix = f"translate {source_lang} to {target_lang}: "
+        self.prefix = f"Translate {source_lang} to {target_lang}: "
         self.pre_tokenized = pre_tokenized
-        
+
         if self.pre_tokenized:
             self.prefix_tokens = self.tokenizer(
                 self.prefix,
@@ -61,10 +77,6 @@ class T5Trainer:
             prefix_expanded = self.prefix_tokens.repeat(batch_size, 1).to(self.device)
 
             input_ids = torch.cat([prefix_expanded, batch['source']], dim=1)
-
-            print("prefix_expanded shape:", prefix_expanded.shape)
-            print("src_attn_mask shape:", batch['src_attn_mask'].shape)
-
             attention_mask = torch.cat([
                 torch.ones_like(prefix_expanded),
                 batch['src_attn_mask']
@@ -87,7 +99,7 @@ class T5Trainer:
                 padding=True,
                 truncation=True,
                 return_tensors="pt",
-                max_length=512
+                max_length=256
             ).to(self.device)
 
             labels = self.tokenizer(
@@ -95,7 +107,7 @@ class T5Trainer:
                 padding=True,
                 truncation=True,
                 return_tensors="pt",
-                max_length=512
+                max_length=256
             ).input_ids.to(self.device)
 
             return {
@@ -169,7 +181,7 @@ class T5Trainer:
             val_bar = tqdm(dataloader, desc="Validating")
             for batch in val_bar:
                 prepared_batch = self.prepare_batch(batch, "val")
-                input_ids = batch['source'].to(self.device)
+                input_ids = prepared_batch['source'].to(self.device)
                 attention_mask = batch['src_attn_mask'].to(self.device)
                 labels = batch['target_output'].to(self.device)
 
@@ -199,20 +211,21 @@ class T5Trainer:
             return_tensors="pt",
             padding=True,
             truncation=True,
-            max_length=512
+            max_length=256
         ).to(self.device)
 
         with torch.no_grad():
             outputs = self.model.generate(
                 input_ids=inputs["input_ids"],
                 attention_mask=inputs["attention_mask"],
-                max_length=512,
+                max_length=256,
                 num_beams=4,
                 length_penalty=2.0,
                 early_stopping=True
             )
 
         return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
+
 
 def main():
     trainer = T5Trainer()
@@ -221,12 +234,12 @@ def main():
     val_loader = get_dataloader(DATA_ROOT, 'val', config.batch_size, max_seq_len=config.max_seq_len)
 
     trainer.train(train_loader, val_loader)
-    
-    # Example translation
+
     source_text = "Hello, how are you?"
     translation = trainer.translate(source_text)
     print(f"Source: {source_text}")
     print(f"Translation: {translation}")
+
 
 if __name__ == "__main__":
     main()

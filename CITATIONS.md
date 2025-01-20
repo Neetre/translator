@@ -1,6 +1,6 @@
 # Citations
 
-This file contains a list of all the sources that were used in the creation of this project.
+This file contains a list of all the sources that were used in the creation of this project. Other can be found in the [Note](Note.md) file.
 
 ## Sources
 

@@ -57,25 +57,18 @@ Extract from Modded-NanoGPT:
 - FlexAttention with window size warmup.
 - Extra embeddings which are fed into intermediate attention layers.
 
-
 ## Step
 
-- [X] Cercare i dataset delle varie lingue;
-- [X] scegliere cosa fare on il tokenizer, o custom training, o tiktoken. Scelta: tiktoken cl100k_base;
+- [X] Dataset creation;
+- [X] choose the Tokenizer. Choice: tiktoken cl100k_base --> mT5 --> llama3.1-8B;
 - [X] Dataloaders;
 - [X] Testing tokenizer;
-- [X] Creazione del modello;
-- [X] Ottimizzazione;
-- [] Training del modello;
-- [] Finetune? (È necessaria?);
-- [] Evaluation;
-- [] Deploy (website, load the model on hf);
+- [X] Model creation;
+- [X] Optimization;
+- [X] Model training (not enough computational power) --> finetune;
+- [X] Evaluation (scablue)
+- [] Deploy (website, load the model on hf); # Never :sad:
 
 ## Notes
 
 - No Muon optimizer yet;
-
-## Parameters
-
-17/12/2024: mod_model.py: total parameters: 484.64M
-            model_flex.py: total parameters: 484.50M
